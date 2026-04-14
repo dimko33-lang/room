@@ -139,7 +139,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # ============================================
-# 📡 АВТО-ПУШ ЛОГОВ (ПРАВИЛЬНАЯ ВЕРСИЯ)
+# 📡 АВТО-ПУШ ЛОГОВ (ГАРАНТИРОВАННЫЙ CRON)
 # ============================================
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Настройка автопуша логов в ${GITHUB_REPO}..."
@@ -179,10 +179,12 @@ INNEREOF
 
     chmod +x $INSTALL_DIR/push_log.sh
     
-    # Добавляем в cron каждую минуту
-    (crontab -l 2>/dev/null | grep -v push_log.sh; echo "* * * * * $INSTALL_DIR/push_log.sh >/dev/null 2>&1") | crontab -
+    # ГАРАНТИРОВАННОЕ ДОБАВЛЕНИЕ CRON
+    echo "* * * * * root $INSTALL_DIR/push_log.sh >/dev/null 2>&1" > /etc/cron.d/room-logs
+    chmod 644 /etc/cron.d/room-logs
+    systemctl restart cron
     
-    echo "✅ Авто-пуш настроен (каждую минуту, ветка main)"
+    echo "✅ Авто-пуш настроен (каждую минуту через /etc/cron.d/room-logs)"
 else
     echo "ℹ️ Автопуш логов отключен"
     echo "#!/bin/bash" > $INSTALL_DIR/push_log.sh
@@ -226,6 +228,6 @@ echo ""
 echo "📝 Провайдер: ${PROVIDER} | Модель: ${MODEL}"
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Логи пушатся в: https://github.com/${GITHUB_REPO}"
-    echo "📋 Cron: каждую минуту"
+    echo "📋 Cron: /etc/cron.d/room-logs (каждую минуту)"
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
