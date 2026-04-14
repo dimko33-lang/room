@@ -25,7 +25,7 @@
 
 ## Живые демо-комнаты
 
-- http://89.125.62.58/?-empty-web-9771704eff74 (kimi k2 Groq)
+- http://89.125.62.58/?-room-156b5aeff211 (kimi k2 Groq)
 - http://78.17.36.139/?-empty-web-4fdda84a92e3 (kimi k2.5)
 - http://89.125.84.111/?-empty-web-4fdda84a92e3 (kimi k2.5)
 
