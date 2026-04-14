@@ -15,7 +15,7 @@ DEFAULT_OPENROUTER_KEY=""
 DEFAULT_PROVIDER="groq"
 DEFAULT_MODEL="moonshotai/kimi-k2-instruct-0905"
 
-# 📡 АВТО-ПУШ ЛОГОВ В ОТДЕЛЬНЫЙ РЕПОЗИТОРИЙ
+# 📡 АВТО-ПУШ ЛОГОВ
 GITHUB_TOKEN="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"
 GITHUB_REPO="dimko33-lang/room-logs"
 # ----------------------------------------------------------
@@ -143,12 +143,18 @@ systemctl restart room
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     git config --global user.email "room@localhost"
     git config --global user.name "Room Logger"
+    git config --global credential.helper store
 
     mkdir -p $INSTALL_DIR/logs
     cat > $INSTALL_DIR/push_log.sh << 'INNEREOF'
 #!/bin/bash
 cd /opt/room
 source .env
+
+echo "protocol=https
+host=github.com
+username=token
+password=${GITHUB_TOKEN}" | git credential approve
 
 rm -rf /tmp/room-logs
 mkdir -p /tmp/room-logs
@@ -162,7 +168,7 @@ sed -i 's/^---/---\n/' /tmp/room-logs/room.md
 cd /tmp/room-logs
 
 git init
-git remote add origin https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git
+git remote add origin https://github.com/${GITHUB_REPO}.git
 git checkout -b main 2>/dev/null || git checkout main
 git pull origin main --rebase 2>/dev/null || true
 git add room.log room.md
