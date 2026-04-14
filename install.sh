@@ -1,4 +1,4 @@
-\#!/bin/bash
+#!/bin/bash
 set -e
 
 # ⚙️ РЕЖИМ УСТАНОВКИ
@@ -8,7 +8,7 @@ INSTALL_MODE="auto"
 DEFAULT_PROVIDER="groq"
 DEFAULT_MODEL="moonshotai/kimi-k2-instruct-0905"
 
-# 📡 АВТО-ПУШ ЛОГОВ (GITHUB API С ПРОВЕРКОЙ SHA)
+# 📡 АВТО-ПУШ ЛОГОВ (GITHUB API С ДАТОЙ В ИМЕНИ ФАЙЛА)
 GITHUB_REPO="dimko33-lang/room-logs"
 SECRET_PASSWORD="room-secret-2026"
 # ----------------------------------------------------------
@@ -125,11 +125,14 @@ ALIAS_CODE=$(python3 -c "import secrets; print(secrets.token_hex(6))")
 ROOM_ALIAS="-room-${ALIAS_CODE}"
 echo "$ROOM_ALIAS" > room_alias.txt
 
-# Получаем IP сервера для имени файла
+# Получаем IP сервера и дату для имени файла
 SERVER_IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
 SAFE_IP=$(echo "$SERVER_IP" | tr '.' '-')
-LOG_FILENAME="room-${SAFE_IP}.md"
+INSTALL_DATE=$(date +%Y%m%d-%H%M%S)
+LOG_FILENAME="room-${SAFE_IP}-${INSTALL_DATE}.md"
 echo "$LOG_FILENAME" > room_filename.txt
+
+echo "📋 Файл лога: $LOG_FILENAME"
 
 # Права
 chown root:root room.py agent.py 2>/dev/null || true
