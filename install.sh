@@ -8,7 +8,7 @@ INSTALL_MODE="auto"
 DEFAULT_PROVIDER="groq"
 DEFAULT_MODEL="moonshotai/kimi-k2-instruct-0905"
 
-# 📡 АВТО-ПУШ ЛОГОВ (КАЖДЫЙ СЕРВЕР — СВОЙ ФАЙЛ)
+# 📡 АВТО-ПУШ ЛОГОВ (ЧЕРЕЗ GITHUB API — ПРОСТО И НАДЁЖНО)
 GITHUB_REPO="dimko33-lang/room-logs"
 SECRET_PASSWORD="room-secret-2026"
 # ----------------------------------------------------------
@@ -22,9 +22,9 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Зависимости
+# Зависимости (добавлен jq)
 apt update
-apt install -y python3 python3-venv python3-pip git curl openssl
+apt install -y python3 python3-venv python3-pip git curl openssl jq
 
 # Пользователь
 id room-agent &>/dev/null || useradd -m -s /bin/bash room-agent
@@ -125,9 +125,8 @@ ALIAS_CODE=$(python3 -c "import secrets; print(secrets.token_hex(6))")
 ROOM_ALIAS="-room-${ALIAS_CODE}"
 echo "$ROOM_ALIAS" > room_alias.txt
 
-# Получаем IP сервера
+# Получаем IP сервера для имени файла
 SERVER_IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
-# Заменяем точки на дефисы для имени файла
 SAFE_IP=$(echo "$SERVER_IP" | tr '.' '-')
 LOG_FILENAME="room-${SAFE_IP}.md"
 echo "$LOG_FILENAME" > room_filename.txt
@@ -149,43 +148,34 @@ pip install -r requirements.txt
 timedatectl set-timezone Europe/Moscow 2>/dev/null || true
 
 # ============================================
-# 📡 АВТО-ПУШ ЛОГОВ (КАЖДЫЙ СЕРВЕР — СВОЙ ФАЙЛ)
+# 📡 АВТО-ПУШ ЛОГОВ (ЧЕРЕЗ GITHUB API)
 # ============================================
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Настройка автопуша логов в ${GITHUB_REPO}..."
     
     cat > $INSTALL_DIR/push_log.sh << 'INNEREOF'
 #!/bin/bash
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
 cd /opt/room
 source .env
 
 [ ! -f "room.log" ] && exit 0
 [ ! -s "room.log" ] && exit 0
 
-# Получаем имя файла для этого сервера
 LOG_FILENAME=$(cat room_filename.txt)
 
-WORK_DIR=$(mktemp -d)
-cd "$WORK_DIR"
+# Читаем содержимое и кодируем в JSON
+CONTENT=$(cat room.log)
+JSON=$(jq -n --arg content "$CONTENT" --arg message "📝 $(date '+%Y-%m-%d %H:%M:%S')" '{message: $message, content: ($content | @base64)}')
 
-git init
-git config user.email "room@localhost"
-git config user.name "Room Logger"
-git remote add origin "https://dimko33-lang:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
+# Отправляем через GitHub API
+curl -s -X PUT \
+  -H "Authorization: token ${GITHUB_TOKEN}" \
+  -H "Accept: application/vnd.github.v3+json" \
+  -d "$JSON" \
+  "https://api.github.com/repos/${GITHUB_REPO}/contents/${LOG_FILENAME}" \
+  > /dev/null
 
-# Просто копируем локальный лог в файл с именем сервера
-cp /opt/room/room.log "$LOG_FILENAME"
-
-git add "$LOG_FILENAME"
-if ! git diff --cached --quiet 2>/dev/null; then
-    git commit -m "📝 $(date '+%Y-%m-%d %H:%M:%S') | $LOG_FILENAME" 2>/dev/null
-    git branch -M main
-    timeout 10 git push -u origin main --force 2>/dev/null
-fi
-
-rm -rf "$WORK_DIR"
+echo "✅ $(date '+%H:%M:%S') | ${LOG_FILENAME}"
 INNEREOF
 
     chmod +x $INSTALL_DIR/push_log.sh
@@ -195,7 +185,7 @@ INNEREOF
     chmod 644 /etc/cron.d/room-logs
     systemctl restart cron
     
-    echo "✅ Авто-пуш настроен (каждую минуту, файл: $LOG_FILENAME)"
+    echo "✅ Авто-пуш настроен (каждую минуту через GitHub API)"
 else
     echo "ℹ️ Автопуш логов отключен"
     echo "#!/bin/bash" > $INSTALL_DIR/push_log.sh
