@@ -139,13 +139,15 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # ============================================
-# 📡 АВТО-ПУШ ЛОГОВ (ДОПИСЫВАНИЕ В MAIN)
+# 📡 АВТО-ПУШ ЛОГОВ (ПРАВИЛЬНАЯ ВЕРСИЯ)
 # ============================================
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Настройка автопуша логов в ${GITHUB_REPO}..."
     
     cat > $INSTALL_DIR/push_log.sh << 'INNEREOF'
 #!/bin/bash
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 cd /opt/room
 source .env
 
@@ -160,18 +162,13 @@ git config user.email "room@localhost"
 git config user.name "Room Logger"
 git remote add origin "https://dimko33-lang:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
 
-# Скачиваем существующий лог из main
 git fetch origin main 2>/dev/null && git checkout origin/main -- room.log 2>/dev/null || touch room.log
 
-# Находим только новые строки
-comm -13 <(sort room.log 2>/dev/null) <(sort /opt/room/room.log 2>/dev/null) >> room.log.new
+cat /opt/room/room.log >> room.log
+awk '!seen[$0]++' room.log > room.tmp && mv room.tmp room.log
 
-if [ -s room.log.new ]; then
-    cat room.log.new >> room.log
-    sort -u room.log -o room.log
-    rm room.log.new
-    
-    git add room.log
+git add room.log
+if ! git diff --cached --quiet 2>/dev/null; then
     git commit -m "📝 $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null
     git branch -M main
     timeout 10 git push -u origin main --force 2>/dev/null
@@ -185,7 +182,7 @@ INNEREOF
     # Добавляем в cron каждую минуту
     (crontab -l 2>/dev/null | grep -v push_log.sh; echo "* * * * * $INSTALL_DIR/push_log.sh >/dev/null 2>&1") | crontab -
     
-    echo "✅ Авто-пуш настроен (каждую минуту, ветка main, история сохраняется)"
+    echo "✅ Авто-пуш настроен (каждую минуту, ветка main)"
 else
     echo "ℹ️ Автопуш логов отключен"
     echo "#!/bin/bash" > $INSTALL_DIR/push_log.sh
@@ -229,6 +226,6 @@ echo ""
 echo "📝 Провайдер: ${PROVIDER} | Модель: ${MODEL}"
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Логи пушатся в: https://github.com/${GITHUB_REPO}"
-    echo "📋 Ветка: main | Cron: каждую минуту | История: сохраняется"
+    echo "📋 Cron: каждую минуту"
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
