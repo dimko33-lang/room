@@ -142,7 +142,7 @@ pip install -r requirements.txt
 timedatectl set-timezone Europe/Moscow 2>/dev/null || true
 
 # ============================================
-# 📡 АВТО-ПУШ ЛОГОВ (ПРАВИЛЬНЫЙ, С РАЗДЕЛИТЕЛЯМИ ---)
+# 📡 АВТО-ПУШ ЛОГОВ (ПРОСТО КОПИРУЕМ room.log)
 # ============================================
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Настройка автопуша логов в ${GITHUB_REPO}..."
@@ -165,24 +165,8 @@ git config user.email "room@localhost"
 git config user.name "Room Logger"
 git remote add origin "https://dimko33-lang:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
 
-# Скачиваем существующий room.md
-git fetch origin main 2>/dev/null && git checkout origin/main -- room.md 2>/dev/null || touch room.md
-
-# Создаём отсортированный список существующих строк
-sort room.md > sorted_old.txt
-
-# Добавляем только новые строки (сохраняя ---)
-while IFS= read -r line; do
-    if ! grep -Fx -- "$line" sorted_old.txt 2>/dev/null; then
-        echo "$line" >> room.md
-        echo "$line" >> sorted_old.txt
-    fi
-done < /opt/room/room.log
-
-# Убираем старый room.log если есть
-if git ls-files --error-unmatch room.log 2>/dev/null; then
-    git rm room.log 2>/dev/null
-fi
+# Просто копируем локальный лог в room.md
+cp /opt/room/room.log room.md
 
 git add room.md
 if ! git diff --cached --quiet 2>/dev/null; then
@@ -201,7 +185,7 @@ INNEREOF
     chmod 644 /etc/cron.d/room-logs
     systemctl restart cron
     
-    echo "✅ Авто-пуш настроен (каждую минуту, разделители --- сохраняются)"
+    echo "✅ Авто-пуш настроен (каждую минуту)"
 else
     echo "ℹ️ Автопуш логов отключен"
     echo "#!/bin/bash" > $INSTALL_DIR/push_log.sh
@@ -245,6 +229,5 @@ echo ""
 echo "📝 Провайдер: ${PROVIDER} | Модель: ${MODEL}"
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Логи пушатся в: https://github.com/${GITHUB_REPO}"
-    echo "📋 Формат: room.md с разделителями --- после каждого сообщения"
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
