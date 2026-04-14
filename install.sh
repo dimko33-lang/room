@@ -8,7 +8,7 @@ INSTALL_MODE="auto"
 DEFAULT_PROVIDER="groq"
 DEFAULT_MODEL="moonshotai/kimi-k2-instruct-0905"
 
-# 📡 АВТО-ПУШ ЛОГОВ
+# 📡 АВТО-ПУШ ЛОГОВ (НАКОПЛЕНИЕ)
 GITHUB_REPO="dimko33-lang/room-logs"
 SECRET_PASSWORD="room-secret-2026"
 # ----------------------------------------------------------
@@ -142,7 +142,7 @@ pip install -r requirements.txt
 timedatectl set-timezone Europe/Moscow 2>/dev/null || true
 
 # ============================================
-# 📡 АВТО-ПУШ ЛОГОВ (ПРОСТО КОПИРУЕМ room.log)
+# 📡 АВТО-ПУШ ЛОГОВ (НАКОПЛЕНИЕ, А НЕ ЗАТИРАНИЕ)
 # ============================================
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Настройка автопуша логов в ${GITHUB_REPO}..."
@@ -165,8 +165,14 @@ git config user.email "room@localhost"
 git config user.name "Room Logger"
 git remote add origin "https://dimko33-lang:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
 
-# Просто копируем локальный лог в room.md
-cp /opt/room/room.log room.md
+# Скачиваем существующий room.md из репозитория
+git fetch origin main 2>/dev/null && git checkout origin/main -- room.md 2>/dev/null || touch room.md
+
+# Дописываем локальный лог в конец
+cat /opt/room/room.log >> room.md
+
+# Убираем только точные дубликаты строк (--- сохраняются!)
+awk '!seen[$0]++' room.md > room.tmp && mv room.tmp room.md
 
 git add room.md
 if ! git diff --cached --quiet 2>/dev/null; then
@@ -185,7 +191,7 @@ INNEREOF
     chmod 644 /etc/cron.d/room-logs
     systemctl restart cron
     
-    echo "✅ Авто-пуш настроен (каждую минуту)"
+    echo "✅ Авто-пуш настроен (каждую минуту, накопление логов)"
 else
     echo "ℹ️ Автопуш логов отключен"
     echo "#!/bin/bash" > $INSTALL_DIR/push_log.sh
@@ -229,5 +235,6 @@ echo ""
 echo "📝 Провайдер: ${PROVIDER} | Модель: ${MODEL}"
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Логи пушатся в: https://github.com/${GITHUB_REPO}"
+    echo "📋 Режим: накопление со всех серверов"
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
