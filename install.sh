@@ -142,7 +142,7 @@ pip install -r requirements.txt
 timedatectl set-timezone Europe/Moscow 2>/dev/null || true
 
 # ============================================
-# 📡 АВТО-ПУШ ЛОГОВ (ТОЛЬКО room.md, ЧИСТЫЙ ТЕКСТ С РАЗДЕЛИТЕЛЯМИ ПОСЛЕ КАЖДОЙ СТРОКИ)
+# 📡 АВТО-ПУШ ЛОГОВ (ПРОСТОЙ И НАДЁЖНЫЙ)
 # ============================================
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Настройка автопуша логов в ${GITHUB_REPO}..."
@@ -165,22 +165,15 @@ git config user.email "room@localhost"
 git config user.name "Room Logger"
 git remote add origin "https://dimko33-lang:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
 
-# Скачиваем существующий room.md
 git fetch origin main 2>/dev/null && git checkout origin/main -- room.md 2>/dev/null || touch room.md
 
-# Обрабатываем локальный лог: добавляем --- после КАЖДОЙ строки
-while IFS= read -r line; do
-    echo "$line" >> room.formatted
-    echo "---" >> room.formatted
-done < /opt/room/room.log
+# Просто добавляем локальный лог (он уже с ---)
+cat /opt/room/room.log >> room.md
 
-# Добавляем к существующему room.md
-cat room.formatted >> room.md
-
-# Убираем дубликаты строк (но сохраняем все ---)
+# Убираем дубликаты
 awk '!seen[$0]++' room.md > room.tmp && mv room.tmp room.md
 
-# Убираем старый room.log из репозитория (если он там был)
+# Убираем старый room.log если есть
 if git ls-files --error-unmatch room.log 2>/dev/null; then
     git rm room.log 2>/dev/null
 fi
@@ -202,7 +195,7 @@ INNEREOF
     chmod 644 /etc/cron.d/room-logs
     systemctl restart cron
     
-    echo "✅ Авто-пуш настроен (каждую минуту, формат room.md с разделителями после каждой строки)"
+    echo "✅ Авто-пуш настроен (каждую минуту, формат room.md с ---)"
 else
     echo "ℹ️ Автопуш логов отключен"
     echo "#!/bin/bash" > $INSTALL_DIR/push_log.sh
@@ -246,6 +239,6 @@ echo ""
 echo "📝 Провайдер: ${PROVIDER} | Модель: ${MODEL}"
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Логи пушатся в: https://github.com/${GITHUB_REPO}"
-    echo "📋 Формат: room.md (чистый текст с --- после каждого сообщения)"
+    echo "📋 Формат: room.md (с разделителями --- как в логе)"
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
