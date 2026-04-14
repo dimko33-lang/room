@@ -18,7 +18,7 @@ DEFAULT_PROVIDER="groq"
 DEFAULT_MODEL="moonshotai/kimi-k2-instruct-0905"
 
 # 📡 АВТО-ПУШ ЛОГОВ В GITHUB
-GITHUB_TOKEN="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"
+GITHUB_TOKEN="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"
 GITHUB_REPO="dimko33-lang/room-logs"
 # ----------------------------------------------------------
 
