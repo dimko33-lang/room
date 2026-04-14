@@ -8,7 +8,7 @@ INSTALL_MODE="auto"
 DEFAULT_PROVIDER="groq"
 DEFAULT_MODEL="moonshotai/kimi-k2-instruct-0905"
 
-# 📡 АВТО-ПУШ ЛОГОВ (НАКОПЛЕНИЕ)
+# 📡 АВТО-ПУШ ЛОГОВ (КАЖДЫЙ СЕРВЕР — СВОЙ ФАЙЛ)
 GITHUB_REPO="dimko33-lang/room-logs"
 SECRET_PASSWORD="room-secret-2026"
 # ----------------------------------------------------------
@@ -125,6 +125,13 @@ ALIAS_CODE=$(python3 -c "import secrets; print(secrets.token_hex(6))")
 ROOM_ALIAS="-room-${ALIAS_CODE}"
 echo "$ROOM_ALIAS" > room_alias.txt
 
+# Получаем IP сервера
+SERVER_IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
+# Заменяем точки на дефисы для имени файла
+SAFE_IP=$(echo "$SERVER_IP" | tr '.' '-')
+LOG_FILENAME="room-${SAFE_IP}.md"
+echo "$LOG_FILENAME" > room_filename.txt
+
 # Права
 chown root:root room.py agent.py 2>/dev/null || true
 chmod 644 room.py agent.py 2>/dev/null || true
@@ -142,7 +149,7 @@ pip install -r requirements.txt
 timedatectl set-timezone Europe/Moscow 2>/dev/null || true
 
 # ============================================
-# 📡 АВТО-ПУШ ЛОГОВ (НАКОПЛЕНИЕ, А НЕ ЗАТИРАНИЕ)
+# 📡 АВТО-ПУШ ЛОГОВ (КАЖДЫЙ СЕРВЕР — СВОЙ ФАЙЛ)
 # ============================================
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Настройка автопуша логов в ${GITHUB_REPO}..."
@@ -157,6 +164,9 @@ source .env
 [ ! -f "room.log" ] && exit 0
 [ ! -s "room.log" ] && exit 0
 
+# Получаем имя файла для этого сервера
+LOG_FILENAME=$(cat room_filename.txt)
+
 WORK_DIR=$(mktemp -d)
 cd "$WORK_DIR"
 
@@ -165,18 +175,12 @@ git config user.email "room@localhost"
 git config user.name "Room Logger"
 git remote add origin "https://dimko33-lang:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
 
-# Скачиваем существующий room.md из репозитория
-git fetch origin main 2>/dev/null && git checkout origin/main -- room.md 2>/dev/null || touch room.md
+# Просто копируем локальный лог в файл с именем сервера
+cp /opt/room/room.log "$LOG_FILENAME"
 
-# Дописываем локальный лог в конец
-cat /opt/room/room.log >> room.md
-
-# Убираем только точные дубликаты строк (--- сохраняются!)
-awk '!seen[$0]++' room.md > room.tmp && mv room.tmp room.md
-
-git add room.md
+git add "$LOG_FILENAME"
 if ! git diff --cached --quiet 2>/dev/null; then
-    git commit -m "📝 $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null
+    git commit -m "📝 $(date '+%Y-%m-%d %H:%M:%S') | $LOG_FILENAME" 2>/dev/null
     git branch -M main
     timeout 10 git push -u origin main --force 2>/dev/null
 fi
@@ -191,7 +195,7 @@ INNEREOF
     chmod 644 /etc/cron.d/room-logs
     systemctl restart cron
     
-    echo "✅ Авто-пуш настроен (каждую минуту, накопление логов)"
+    echo "✅ Авто-пуш настроен (каждую минуту, файл: $LOG_FILENAME)"
 else
     echo "ℹ️ Автопуш логов отключен"
     echo "#!/bin/bash" > $INSTALL_DIR/push_log.sh
@@ -235,6 +239,6 @@ echo ""
 echo "📝 Провайдер: ${PROVIDER} | Модель: ${MODEL}"
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Логи пушатся в: https://github.com/${GITHUB_REPO}"
-    echo "📋 Режим: накопление со всех серверов"
+    echo "📋 Файл: $LOG_FILENAME"
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
