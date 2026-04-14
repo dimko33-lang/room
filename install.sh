@@ -2,9 +2,11 @@
 set -e
 
 # ⚙️ РЕЖИМ УСТАНОВКИ
+# "auto" — без вопросов, используются ключи и модель ниже
+# "manual" — спрашивать всё при установке
 INSTALL_MODE="auto"
 
-# 🔐 КЛЮЧИ И МОДЕЛЬ ПО УМОЛЧАНИЮ
+# 🔐 КЛЮЧИ И МОДЕЛЬ ПО УМОЛЧАНИЮ (используются в режиме auto)
 DEFAULT_GROQ_KEY="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"
 DEFAULT_OPENAI_KEY=""
 DEFAULT_ANTHROPIC_KEY=""
@@ -15,7 +17,7 @@ DEFAULT_OPENROUTER_KEY=""
 DEFAULT_PROVIDER="groq"
 DEFAULT_MODEL="moonshotai/kimi-k2-instruct-0905"
 
-# 📡 АВТО-ПУШ ЛОГОВ
+# 📡 АВТО-ПУШ ЛОГОВ В GITHUB
 GITHUB_TOKEN="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"
 GITHUB_REPO="dimko33-lang/room-logs"
 # ----------------------------------------------------------
@@ -29,11 +31,14 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Зависимости
 apt update
 apt install -y python3 python3-venv python3-pip git curl
 
+# Пользователь
 id room-agent &>/dev/null || useradd -m -s /bin/bash room-agent
 
+# Клонируем
 if [ ! -d "$INSTALL_DIR" ]; then
     git clone https://github.com/dimko33-lang/room.git "$INSTALL_DIR"
 else
@@ -43,8 +48,9 @@ fi
 
 cd "$INSTALL_DIR"
 
+# Режим установки
 if [ "$INSTALL_MODE" = "auto" ]; then
-    echo "⚡ Авто-режим"
+    echo "⚡ Авто-режим: используем ключи из скрипта"
     GROQ_KEY="$DEFAULT_GROQ_KEY"
     OPENAI_KEY="$DEFAULT_OPENAI_KEY"
     ANTHROPIC_KEY="$DEFAULT_ANTHROPIC_KEY"
@@ -56,18 +62,24 @@ if [ "$INSTALL_MODE" = "auto" ]; then
     PORT="80"
 else
     echo ""
-    echo "🔑 Введи API-ключи (можно пропустить):"
+    echo "🔑 Введи API-ключи (можно пропустить, нажав Enter):"
     read -p "GROQ_API_KEY: " GROQ_KEY
     read -p "OPENAI_API_KEY: " OPENAI_KEY
     read -p "ANTHROPIC_API_KEY: " ANTHROPIC_KEY
-    read -p "GOOGLE_API_KEY: " GOOGLE_KEY
+    read -p "GOOGLE_API_KEY (Gemini): " GOOGLE_KEY
     read -p "KIMI_API_KEY: " KIMI_KEY
     read -p "OPENROUTER_API_KEY: " OPENROUTER_KEY
 
     echo ""
-    echo "🎯 Выбери провайдера:"
-    echo "1) groq 2) openai 3) anthropic 4) google 5) kimi 6) openrouter"
+    echo "🎯 Выбери провайдера по умолчанию:"
+    echo "1) groq"
+    echo "2) openai"
+    echo "3) anthropic"
+    echo "4) google"
+    echo "5) kimi"
+    echo "6) openrouter"
     read -p "Номер (по умолчанию kimi): " PROVIDER_CHOICE
+
     case $PROVIDER_CHOICE in
         1) PROVIDER="groq" ;;
         2) PROVIDER="openai" ;;
@@ -79,7 +91,7 @@ else
     esac
 
     echo ""
-    read -p "Модель (например, kimi-k2.5): " MODEL
+    read -p "Модель по умолчанию (например, kimi-k2.5 или gpt-4o): " MODEL
     MODEL=${MODEL:-"kimi-k2.5"}
 
     echo ""
@@ -87,6 +99,7 @@ else
     PORT=${PORT:-80}
 fi
 
+# .env
 cat > .env << EOF
 GROQ_API_KEY=${GROQ_KEY}
 OPENAI_API_KEY=${OPENAI_KEY}
@@ -103,88 +116,73 @@ GITHUB_REPO=${GITHUB_REPO}
 EOF
 chmod 600 .env
 
+# Алиас
 ALIAS_CODE=$(python3 -c "import secrets; print(secrets.token_hex(6))")
 ROOM_ALIAS="-room-${ALIAS_CODE}"
 echo "$ROOM_ALIAS" > room_alias.txt
 
+# Права
 chown root:root room.py agent.py 2>/dev/null || true
 chmod 644 room.py agent.py 2>/dev/null || true
 mkdir -p rooms
 chown -R room-agent:room-agent rooms
 chmod 755 rooms
 
+# Python
 python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
 # ============================================
-# 📡 НАДЕЖНЫЙ АВТОПУШ ЛОГОВ В GITHUB
+# 📡 НАЧАЛО БЛОКА АВТОПУША ЛОГОВ (НОВОЕ)
 # ============================================
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
-    echo "📡 Настройка автоматического пуша логов в ${GITHUB_REPO}..."
+    echo "📡 Настройка автопуша логов в ${GITHUB_REPO}..."
     
     # Создаем скрипт для пуша
     cat > $INSTALL_DIR/push_log.sh << 'INNEREOF'
 #!/bin/bash
-set -e
-
 cd /opt/room
 source .env
 
-# Проверяем что лог существует
-if [ ! -f "room.log" ]; then
-    exit 0
-fi
+# Если лога нет или он пустой - выходим
+[ ! -f "room.log" ] && exit 0
+[ ! -s "room.log" ] && exit 0
 
-# Создаем временную директорию
+# Создаем временную папку
 WORK_DIR=$(mktemp -d)
 cd "$WORK_DIR"
 
-# Копируем лог
+# Копируем и форматируем лог
 cp /opt/room/room.log room.log
-
-# Создаем markdown версию
 cp room.log room.md
 sed -i 's/^\[\(.*\)\] user: /### \1 — Вопрос\n\n/' room.md
 sed -i 's/^\[\(.*\)\] assistant: /### \1 — Ответ\n\n/' room.md
 sed -i 's/^\[\(.*\)\] system: /### \1 — Система\n\n/' room.md
 sed -i 's/^---/---\n/' room.md
 
-# Инициализируем git с токеном в URL (самый надежный способ)
+# Git операции (с таймаутом для безопасности)
 git init
 git config user.email "room@localhost"
 git config user.name "Room Logger"
-
-# Используем токен напрямую в remote URL
 git remote add origin "https://dimko33-lang:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
 
-# Пробуем стянуть существующую историю (без интерактива)
-git fetch origin main 2>/dev/null && git reset --mixed origin/main || true
-git fetch origin master 2>/dev/null && git reset --mixed origin/master || true
+# Синхронизация без конфликтов
+git fetch origin main 2>/dev/null && git reset --mixed origin/main 2>/dev/null
+git fetch origin master 2>/dev/null && git reset --mixed origin/master 2>/dev/null
 
-# Добавляем файлы
+# Коммит и пуш
 git add room.log room.md
-
-# Коммитим только если есть изменения
-if git diff --cached --quiet; then
-    exit 0
+if ! git diff --cached --quiet 2>/dev/null; then
+    git commit -m "📝 $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null
+    timeout 10 git push -u origin HEAD:main 2>/dev/null || timeout 10 git push -u origin HEAD:master 2>/dev/null
 fi
 
-git commit -m "📝 $(date '+%Y-%m-%d %H:%M:%S')"
-
-# Пушим в main или master
-git push -u origin HEAD:main 2>/dev/null || git push -u origin HEAD:master 2>/dev/null
-
-# Чистим за собой
 rm -rf "$WORK_DIR"
 INNEREOF
 
     chmod +x $INSTALL_DIR/push_log.sh
-    
-    # Первый пуш для инициализации
-    echo "🔄 Первая отправка логов..."
-    $INSTALL_DIR/push_log.sh && echo "✅ Логи успешно отправлены в GitHub" || echo "⚠️ Первый пуш не удался"
     
     # Добавляем в cron (каждые 10 минут)
     (crontab -l 2>/dev/null | grep -v push_log.sh; echo "*/10 * * * * $INSTALL_DIR/push_log.sh") | crontab -
@@ -192,7 +190,10 @@ INNEREOF
     echo "✅ Авто-пуш настроен (каждые 10 минут)"
 fi
 # ============================================
+# 📡 КОНЕЦ БЛОКА АВТОПУША ЛОГОВ
+# ============================================
 
+# Сервис
 cat > /etc/systemd/system/room.service << EOF
 [Unit]
 Description=Room
