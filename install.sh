@@ -138,6 +138,9 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
+# Устанавливаем московское время
+timedatectl set-timezone Europe/Moscow 2>/dev/null || true
+
 # ============================================
 # 📡 АВТО-ПУШ ЛОГОВ (ГАРАНТИРОВАННЫЙ CRON)
 # ============================================
