@@ -1,4 +1,4 @@
-#!/bin/bash
+\#!/bin/bash
 set -e
 
 # ⚙️ РЕЖИМ УСТАНОВКИ
@@ -8,7 +8,7 @@ INSTALL_MODE="auto"
 DEFAULT_PROVIDER="groq"
 DEFAULT_MODEL="moonshotai/kimi-k2-instruct-0905"
 
-# 📡 АВТО-ПУШ ЛОГОВ (ЧЕРЕЗ GITHUB API — ПРОСТО И НАДЁЖНО)
+# 📡 АВТО-ПУШ ЛОГОВ (GITHUB API С ПРОВЕРКОЙ SHA)
 GITHUB_REPO="dimko33-lang/room-logs"
 SECRET_PASSWORD="room-secret-2026"
 # ----------------------------------------------------------
@@ -22,7 +22,7 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Зависимости (добавлен jq)
+# Зависимости
 apt update
 apt install -y python3 python3-venv python3-pip git curl openssl jq
 
@@ -148,7 +148,7 @@ pip install -r requirements.txt
 timedatectl set-timezone Europe/Moscow 2>/dev/null || true
 
 # ============================================
-# 📡 АВТО-ПУШ ЛОГОВ (ЧЕРЕЗ GITHUB API)
+# 📡 АВТО-ПУШ ЛОГОВ (GITHUB API С SHA)
 # ============================================
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Настройка автопуша логов в ${GITHUB_REPO}..."
@@ -162,18 +162,27 @@ source .env
 [ ! -s "room.log" ] && exit 0
 
 LOG_FILENAME=$(cat room_filename.txt)
-
-# Читаем содержимое и кодируем в JSON
 CONTENT=$(cat room.log)
-JSON=$(jq -n --arg content "$CONTENT" --arg message "📝 $(date '+%Y-%m-%d %H:%M:%S')" '{message: $message, content: ($content | @base64)}')
 
-# Отправляем через GitHub API
+# Проверяем, существует ли файл
+SHA=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+  "https://api.github.com/repos/${GITHUB_REPO}/contents/${LOG_FILENAME}" | jq -r '.sha // empty')
+
+# Формируем JSON
+if [ -n "$SHA" ]; then
+    JSON=$(jq -n --arg content "$CONTENT" --arg message "📝 $(date '+%Y-%m-%d %H:%M:%S')" --arg sha "$SHA" \
+      '{message: $message, content: ($content | @base64), sha: $sha}')
+else
+    JSON=$(jq -n --arg content "$CONTENT" --arg message "📝 $(date '+%Y-%m-%d %H:%M:%S')" \
+      '{message: $message, content: ($content | @base64)}')
+fi
+
+# Отправляем
 curl -s -X PUT \
   -H "Authorization: token ${GITHUB_TOKEN}" \
   -H "Accept: application/vnd.github.v3+json" \
   -d "$JSON" \
-  "https://api.github.com/repos/${GITHUB_REPO}/contents/${LOG_FILENAME}" \
-  > /dev/null
+  "https://api.github.com/repos/${GITHUB_REPO}/contents/${LOG_FILENAME}" > /dev/null
 
 echo "✅ $(date '+%H:%M:%S') | ${LOG_FILENAME}"
 INNEREOF
