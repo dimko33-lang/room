@@ -4,14 +4,8 @@ set -e
 # ⚙️ РЕЖИМ УСТАНОВКИ
 INSTALL_MODE="auto"
 
-# 🔐 КЛЮЧИ И МОДЕЛЬ ПО УМОЛЧАНИЮ
-DEFAULT_GROQ_KEY="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"
-DEFAULT_OPENAI_KEY=""
-DEFAULT_ANTHROPIC_KEY=""
-DEFAULT_GOOGLE_KEY=""
-DEFAULT_KIMI_KEY=""
-DEFAULT_OPENROUTER_KEY=""
-
+# 🎯 ПРОВАЙДЕР И МОДЕЛЬ ПО УМОЛЧАНИЮ
+# Доступные провайдеры: groq, kimi, openrouter
 DEFAULT_PROVIDER="groq"
 DEFAULT_MODEL="moonshotai/kimi-k2-instruct-0905"
 
@@ -47,66 +41,66 @@ fi
 cd "$INSTALL_DIR"
 
 # ============================================
-# 🔓 РАСШИФРОВКА GITHUB ТОКЕНА
+# 🔓 РАСШИФРОВКА ВСЕХ КЛЮЧЕЙ И ТОКЕНОВ
 # ============================================
-GITHUB_TOKEN=""
-if [ -f "token.encrypted" ]; then
-    echo "🔓 Расшифровка GitHub токена..."
-    GITHUB_TOKEN=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -in token.encrypted -k "$SECRET_PASSWORD" 2>/dev/null)
-    if [ $? -eq 0 ] && [ -n "$GITHUB_TOKEN" ]; then
-        echo "✅ Токен успешно расшифрован"
-    else
-        echo "⚠️ Не удалось расшифровать токен (пуш логов будет отключен)"
-        GITHUB_TOKEN=""
+decrypt() {
+    if [ -f "$1" ]; then
+        openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -in "$1" -k "$SECRET_PASSWORD" 2>/dev/null
     fi
-fi
+}
+
+echo "🔓 Расшифровка ключей..."
+
+GITHUB_TOKEN=$(decrypt "token.encrypted")
+GROQ_KEY=$(decrypt "groq.encrypted")
+KIMI_KEY=$(decrypt "kimi.encrypted")
+OPENROUTER_KEY=$(decrypt "openrouter.encrypted")
+
+# Пустые для совместимости
+OPENAI_KEY=""
+ANTHROPIC_KEY=""
+GOOGLE_KEY=""
+
+[ -n "$GITHUB_TOKEN" ] && echo "✅ GitHub токен расшифрован"
+[ -n "$GROQ_KEY" ] && echo "✅ Groq ключ расшифрован"
+[ -n "$KIMI_KEY" ] && echo "✅ Kimi ключ расшифрован"
+[ -n "$OPENROUTER_KEY" ] && echo "✅ OpenRouter ключ расшифрован"
 # ============================================
 
 # Режим установки
 if [ "$INSTALL_MODE" = "auto" ]; then
-    echo "⚡ Авто-режим: используем ключи из скрипта"
-    GROQ_KEY="$DEFAULT_GROQ_KEY"
-    OPENAI_KEY="$DEFAULT_OPENAI_KEY"
-    ANTHROPIC_KEY="$DEFAULT_ANTHROPIC_KEY"
-    GOOGLE_KEY="$DEFAULT_GOOGLE_KEY"
-    KIMI_KEY="$DEFAULT_KIMI_KEY"
-    OPENROUTER_KEY="$DEFAULT_OPENROUTER_KEY"
+    echo "⚡ Авто-режим: используем расшифрованные ключи"
     PROVIDER="$DEFAULT_PROVIDER"
     MODEL="$DEFAULT_MODEL"
     PORT="80"
 else
     echo ""
-    echo "🔑 Введи API-ключи (можно пропустить, нажав Enter):"
-    read -p "GROQ_API_KEY: " GROQ_KEY
-    read -p "OPENAI_API_KEY: " OPENAI_KEY
-    read -p "ANTHROPIC_API_KEY: " ANTHROPIC_KEY
-    read -p "GOOGLE_API_KEY (Gemini): " GOOGLE_KEY
-    read -p "KIMI_API_KEY: " KIMI_KEY
-    read -p "OPENROUTER_API_KEY: " OPENROUTER_KEY
+    echo "🔑 Введи API-ключи (Enter — оставить расшифрованные):"
+    read -p "GROQ_API_KEY [${GROQ_KEY:0:10}...]: " INPUT_GROQ
+    read -p "KIMI_API_KEY [${KIMI_KEY:0:10}...]: " INPUT_KIMI
+    read -p "OPENROUTER_API_KEY [${OPENROUTER_KEY:0:10}...]: " INPUT_OPENROUTER
+    
+    [ -n "$INPUT_GROQ" ] && GROQ_KEY="$INPUT_GROQ"
+    [ -n "$INPUT_KIMI" ] && KIMI_KEY="$INPUT_KIMI"
+    [ -n "$INPUT_OPENROUTER" ] && OPENROUTER_KEY="$INPUT_OPENROUTER"
 
     echo ""
     echo "🎯 Выбери провайдера по умолчанию:"
     echo "1) groq"
-    echo "2) openai"
-    echo "3) anthropic"
-    echo "4) google"
-    echo "5) kimi"
-    echo "6) openrouter"
-    read -p "Номер (по умолчанию kimi): " PROVIDER_CHOICE
+    echo "2) kimi"
+    echo "3) openrouter"
+    read -p "Номер (по умолчанию groq): " PROVIDER_CHOICE
 
     case $PROVIDER_CHOICE in
         1) PROVIDER="groq" ;;
-        2) PROVIDER="openai" ;;
-        3) PROVIDER="anthropic" ;;
-        4) PROVIDER="google" ;;
-        5) PROVIDER="kimi" ;;
-        6) PROVIDER="openrouter" ;;
-        *) PROVIDER="kimi" ;;
+        2) PROVIDER="kimi" ;;
+        3) PROVIDER="openrouter" ;;
+        *) PROVIDER="groq" ;;
     esac
 
     echo ""
-    read -p "Модель по умолчанию (например, kimi-k2.5 или gpt-4o): " MODEL
-    MODEL=${MODEL:-"kimi-k2.5"}
+    read -p "Модель по умолчанию [${DEFAULT_MODEL}]: " INPUT_MODEL
+    MODEL=${INPUT_MODEL:-$DEFAULT_MODEL}
 
     echo ""
     read -p "Порт [80]: " PORT
@@ -149,7 +143,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # ============================================
-# 📡 АВТО-ПУШ ЛОГОВ В GITHUB
+# 📡 АВТО-ПУШ ЛОГОВ (ТОЛЬКО room.log)
 # ============================================
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Настройка автопуша логов в ${GITHUB_REPO}..."
@@ -165,12 +159,7 @@ source .env
 WORK_DIR=$(mktemp -d)
 cd "$WORK_DIR"
 
-cp /opt/room/room.log room.log
-cp room.log room.md
-sed -i 's/^\[\(.*\)\] user: /### \1 — Вопрос\n\n/' room.md
-sed -i 's/^\[\(.*\)\] assistant: /### \1 — Ответ\n\n/' room.md
-sed -i 's/^\[\(.*\)\] system: /### \1 — Система\n\n/' room.md
-sed -i 's/^---/---\n/' room.md
+cp /opt/room/room.log .
 
 git init
 git config user.email "room@localhost"
@@ -180,7 +169,7 @@ git remote add origin "https://dimko33-lang:${GITHUB_TOKEN}@github.com/${GITHUB_
 git fetch origin main 2>/dev/null && git reset --mixed origin/main 2>/dev/null
 git fetch origin master 2>/dev/null && git reset --mixed origin/master 2>/dev/null
 
-git add room.log room.md
+git add room.log
 if ! git diff --cached --quiet 2>/dev/null; then
     git commit -m "📝 $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null
     timeout 10 git push -u origin HEAD:main 2>/dev/null || timeout 10 git push -u origin HEAD:master 2>/dev/null
@@ -190,9 +179,11 @@ rm -rf "$WORK_DIR"
 INNEREOF
 
     chmod +x $INSTALL_DIR/push_log.sh
-    (crontab -l 2>/dev/null | grep -v push_log.sh; echo "*/10 * * * * $INSTALL_DIR/push_log.sh >/dev/null 2>&1") | crontab -
     
-    echo "✅ Авто-пуш настроен (каждые 10 минут)"
+    # Каждую минуту
+    (crontab -l 2>/dev/null | grep -v push_log.sh; echo "* * * * * $INSTALL_DIR/push_log.sh >/dev/null 2>&1") | crontab -
+    
+    echo "✅ Авто-пуш настроен (каждую минуту)"
 else
     echo "ℹ️ Автопуш логов отключен"
     echo "#!/bin/bash" > $INSTALL_DIR/push_log.sh
