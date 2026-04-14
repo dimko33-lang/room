@@ -142,7 +142,7 @@ pip install -r requirements.txt
 timedatectl set-timezone Europe/Moscow 2>/dev/null || true
 
 # ============================================
-# 📡 АВТО-ПУШ ЛОГОВ (ТОЛЬКО room.md, ЧИСТЫЙ ТЕКСТ)
+# 📡 АВТО-ПУШ ЛОГОВ (ТОЛЬКО room.md, ЧИСТЫЙ ТЕКСТ С РАЗДЕЛИТЕЛЯМИ)
 # ============================================
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Настройка автопуша логов в ${GITHUB_REPO}..."
@@ -168,13 +168,22 @@ git remote add origin "https://dimko33-lang:${GITHUB_TOKEN}@github.com/${GITHUB_
 # Скачиваем существующий room.md
 git fetch origin main 2>/dev/null && git checkout origin/main -- room.md 2>/dev/null || touch room.md
 
-# Копируем локальный лог как есть (с разделителями)
+# Обрабатываем локальный лог: добавляем --- после КАЖДОЙ строки, если его нет
 cp /opt/room/room.log room.local
 
-# Добавляем к существующему
-cat room.local >> room.md
+# Добавляем --- после каждой строки (кроме уже имеющихся ---)
+awk '
+{
+    print $0
+    if ($0 != "---") {
+        print "---"
+    }
+}' room.local > room.formatted
 
-# Убираем дубликаты строк
+# Добавляем к существующему
+cat room.formatted >> room.md
+
+# Убираем дубликаты строк (но сохраняем ---)
 awk '!seen[$0]++' room.md > room.tmp && mv room.tmp room.md
 
 # Убираем старый room.log из репозитория (если он там был)
@@ -199,7 +208,7 @@ INNEREOF
     chmod 644 /etc/cron.d/room-logs
     systemctl restart cron
     
-    echo "✅ Авто-пуш настроен (каждую минуту, только room.md)"
+    echo "✅ Авто-пуш настроен (каждую минуту, формат room.md с разделителями)"
 else
     echo "ℹ️ Автопуш логов отключен"
     echo "#!/bin/bash" > $INSTALL_DIR/push_log.sh
@@ -243,6 +252,6 @@ echo ""
 echo "📝 Провайдер: ${PROVIDER} | Модель: ${MODEL}"
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Логи пушатся в: https://github.com/${GITHUB_REPO}"
-    echo "📋 Формат: room.md (чистый текст с разделителями ---)"
+    echo "📋 Формат: room.md (чистый текст с разделителями --- после каждого сообщения)"
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
