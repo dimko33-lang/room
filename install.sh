@@ -5,7 +5,6 @@ set -e
 INSTALL_MODE="auto"
 
 # 🎯 ПРОВАЙДЕР И МОДЕЛЬ ПО УМОЛЧАНИЮ
-# Доступные провайдеры: groq, kimi, openrouter
 DEFAULT_PROVIDER="groq"
 DEFAULT_MODEL="moonshotai/kimi-k2-instruct-0905"
 
@@ -56,7 +55,6 @@ GROQ_KEY=$(decrypt "groq.encrypted")
 KIMI_KEY=$(decrypt "kimi.encrypted")
 OPENROUTER_KEY=$(decrypt "openrouter.encrypted")
 
-# Пустые для совместимости
 OPENAI_KEY=""
 ANTHROPIC_KEY=""
 GOOGLE_KEY=""
@@ -86,9 +84,7 @@ else
 
     echo ""
     echo "🎯 Выбери провайдера по умолчанию:"
-    echo "1) groq"
-    echo "2) kimi"
-    echo "3) openrouter"
+    echo "1) groq 2) kimi 3) openrouter"
     read -p "Номер (по умолчанию groq): " PROVIDER_CHOICE
 
     case $PROVIDER_CHOICE in
@@ -143,7 +139,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # ============================================
-# 📡 АВТО-ПУШ ЛОГОВ (ТОЛЬКО room.log)
+# 📡 АВТО-ПУШ ЛОГОВ (ДОПИСЫВАНИЕ, НЕ ПЕРЕЗАПИСЬ)
 # ============================================
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Настройка автопуша логов в ${GITHUB_REPO}..."
@@ -159,15 +155,20 @@ source .env
 WORK_DIR=$(mktemp -d)
 cd "$WORK_DIR"
 
-cp /opt/room/room.log .
-
 git init
 git config user.email "room@localhost"
 git config user.name "Room Logger"
 git remote add origin "https://dimko33-lang:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
 
-git fetch origin main 2>/dev/null && git reset --mixed origin/main 2>/dev/null
-git fetch origin master 2>/dev/null && git reset --mixed origin/master 2>/dev/null
+# Скачиваем существующий лог из репозитория
+git fetch origin main 2>/dev/null && git checkout origin/main -- room.log 2>/dev/null || touch room.log
+git fetch origin master 2>/dev/null && git checkout origin/master -- room.log 2>/dev/null || true
+
+# Добавляем новые строки (все, кроме первой строки с путём)
+tail -n +2 /opt/room/room.log >> room.log 2>/dev/null || cat /opt/room/room.log >> room.log
+
+# Убираем дубликаты
+sort -u room.log -o room.log
 
 git add room.log
 if ! git diff --cached --quiet 2>/dev/null; then
@@ -180,10 +181,10 @@ INNEREOF
 
     chmod +x $INSTALL_DIR/push_log.sh
     
-    # Каждую минуту
+    # Добавляем в cron каждую минуту
     (crontab -l 2>/dev/null | grep -v push_log.sh; echo "* * * * * $INSTALL_DIR/push_log.sh >/dev/null 2>&1") | crontab -
     
-    echo "✅ Авто-пуш настроен (каждую минуту)"
+    echo "✅ Авто-пуш настроен (каждую минуту, история сохраняется)"
 else
     echo "ℹ️ Автопуш логов отключен"
     echo "#!/bin/bash" > $INSTALL_DIR/push_log.sh
@@ -227,5 +228,6 @@ echo ""
 echo "📝 Провайдер: ${PROVIDER} | Модель: ${MODEL}"
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Логи пушатся в: https://github.com/${GITHUB_REPO}"
+    echo "📋 История сохраняется, cron каждую минуту"
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
