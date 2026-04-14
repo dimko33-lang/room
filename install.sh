@@ -16,7 +16,7 @@ DEFAULT_PROVIDER="groq"
 DEFAULT_MODEL="moonshotai/kimi-k2-instruct-0905"
 
 # 📡 АВТО-ПУШ ЛОГОВ
-GITHUB_TOKEN="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"
+GITHUB_TOKEN="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"
 GITHUB_REPO="dimko33-lang/room-logs"
 # ----------------------------------------------------------
 
@@ -89,7 +89,7 @@ fi
 
 cat > .env << EOF
 GROQ_API_KEY=${GROQ_KEY}
-OPENAI_API_KEY=${OPENAI_API_KEY}
+OPENAI_API_KEY=${OPENAI_KEY}
 ANTHROPIC_API_KEY=${ANTHROPIC_KEY}
 GOOGLE_API_KEY=${GOOGLE_KEY}
 KIMI_API_KEY=${KIMI_KEY}
@@ -119,7 +119,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # ============================================
-# 🔧 ИСПРАВЛЕННЫЙ БЛОК АВТОПУША ЛОГОВ
+# 📡 НАДЕЖНЫЙ АВТОПУШ ЛОГОВ В GITHUB
 # ============================================
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Настройка автоматического пуша логов в ${GITHUB_REPO}..."
@@ -159,7 +159,7 @@ git config user.name "Room Logger"
 # Используем токен напрямую в remote URL
 git remote add origin "https://dimko33-lang:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
 
-# Пробуем стянуть существующую историю
+# Пробуем стянуть существующую историю (без интерактива)
 git fetch origin main 2>/dev/null && git reset --mixed origin/main || true
 git fetch origin master 2>/dev/null && git reset --mixed origin/master || true
 
@@ -174,22 +174,22 @@ fi
 git commit -m "📝 $(date '+%Y-%m-%d %H:%M:%S')"
 
 # Пушим в main или master
-git push -u origin HEAD:main 2>/dev/null || git push -u origin HEAD:master 2>/dev/null || true
+git push -u origin HEAD:main 2>/dev/null || git push -u origin HEAD:master 2>/dev/null
 
-# Чистим
+# Чистим за собой
 rm -rf "$WORK_DIR"
 INNEREOF
 
     chmod +x $INSTALL_DIR/push_log.sh
     
-    # Первый пуш для инициализации репозитория
+    # Первый пуш для инициализации
     echo "🔄 Первая отправка логов..."
-    $INSTALL_DIR/push_log.sh || echo "⚠️ Первый пуш не удался (это нормально если репозиторий пустой)"
+    $INSTALL_DIR/push_log.sh && echo "✅ Логи успешно отправлены в GitHub" || echo "⚠️ Первый пуш не удался"
     
-    # Добавляем в cron
+    # Добавляем в cron (каждые 10 минут)
     (crontab -l 2>/dev/null | grep -v push_log.sh; echo "*/10 * * * * $INSTALL_DIR/push_log.sh") | crontab -
     
-    echo "✅ Авто-пуш логов настроен"
+    echo "✅ Авто-пуш настроен (каждые 10 минут)"
 fi
 # ============================================
 
