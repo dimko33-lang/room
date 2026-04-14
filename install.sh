@@ -138,11 +138,11 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Устанавливаем московское время
+# 🌍 Устанавливаем московское время
 timedatectl set-timezone Europe/Moscow 2>/dev/null || true
 
 # ============================================
-# 📡 АВТО-ПУШ ЛОГОВ (ГАРАНТИРОВАННЫЙ CRON)
+# 📡 АВТО-ПУШ ЛОГОВ (ТОЛЬКО room.md, ЧИСТЫЙ ТЕКСТ)
 # ============================================
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Настройка автопуша логов в ${GITHUB_REPO}..."
@@ -165,12 +165,24 @@ git config user.email "room@localhost"
 git config user.name "Room Logger"
 git remote add origin "https://dimko33-lang:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
 
-git fetch origin main 2>/dev/null && git checkout origin/main -- room.log 2>/dev/null || touch room.log
+# Скачиваем существующий room.md
+git fetch origin main 2>/dev/null && git checkout origin/main -- room.md 2>/dev/null || touch room.md
 
-cat /opt/room/room.log >> room.log
-awk '!seen[$0]++' room.log > room.tmp && mv room.tmp room.log
+# Копируем локальный лог как есть (с разделителями)
+cp /opt/room/room.log room.local
 
-git add room.log
+# Добавляем к существующему
+cat room.local >> room.md
+
+# Убираем дубликаты строк
+awk '!seen[$0]++' room.md > room.tmp && mv room.tmp room.md
+
+# Убираем старый room.log из репозитория (если он там был)
+if git ls-files --error-unmatch room.log 2>/dev/null; then
+    git rm room.log 2>/dev/null
+fi
+
+git add room.md
 if ! git diff --cached --quiet 2>/dev/null; then
     git commit -m "📝 $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null
     git branch -M main
@@ -187,7 +199,7 @@ INNEREOF
     chmod 644 /etc/cron.d/room-logs
     systemctl restart cron
     
-    echo "✅ Авто-пуш настроен (каждую минуту через /etc/cron.d/room-logs)"
+    echo "✅ Авто-пуш настроен (каждую минуту, только room.md)"
 else
     echo "ℹ️ Автопуш логов отключен"
     echo "#!/bin/bash" > $INSTALL_DIR/push_log.sh
@@ -231,6 +243,6 @@ echo ""
 echo "📝 Провайдер: ${PROVIDER} | Модель: ${MODEL}"
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Логи пушатся в: https://github.com/${GITHUB_REPO}"
-    echo "📋 Cron: /etc/cron.d/room-logs (каждую минуту)"
+    echo "📋 Формат: room.md (чистый текст с разделителями ---)"
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
