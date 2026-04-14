@@ -1,0 +1,164 @@
+#!/bin/bash
+set -e
+
+# ⚙️ РЕЖИМ УСТАНОВКИ
+# "auto" — без вопросов, используются ключи и модель ниже
+# "manual" — спрашивать всё при установке
+INSTALL_MODE="auto"
+
+# 🔐 КЛЮЧИ И МОДЕЛЬ ПО УМОЛЧАНИЮ (используются в режиме auto)
+DEFAULT_GROQ_KEY="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"
+DEFAULT_OPENAI_KEY=""
+DEFAULT_ANTHROPIC_KEY=""
+DEFAULT_GOOGLE_KEY=""
+DEFAULT_KIMI_KEY=""
+DEFAULT_OPENROUTER_KEY=""
+
+DEFAULT_PROVIDER="groq"
+DEFAULT_MODEL="moonshotai/kimi-k2-instruct-0905"
+# ----------------------------------------------------------
+
+echo "🧱 Установка Room..."
+
+INSTALL_DIR="/opt/room"
+
+if [ "$EUID" -ne 0 ]; then 
+    echo "❌ Запусти от root"
+    exit 1
+fi
+
+# Зависимости
+apt update
+apt install -y python3 python3-venv python3-pip git curl
+
+# Пользователь
+id room-agent &>/dev/null || useradd -m -s /bin/bash room-agent
+
+# Клонируем
+if [ ! -d "$INSTALL_DIR" ]; then
+    git clone https://github.com/dimko33-lang/room.git "$INSTALL_DIR"
+else
+    cd "$INSTALL_DIR"
+    git pull
+fi
+
+cd "$INSTALL_DIR"
+
+# Режим установки
+if [ "$INSTALL_MODE" = "auto" ]; then
+    echo "⚡ Авто-режим: используем ключи из скрипта"
+    GROQ_KEY="$DEFAULT_GROQ_KEY"
+    OPENAI_KEY="$DEFAULT_OPENAI_KEY"
+    ANTHROPIC_KEY="$DEFAULT_ANTHROPIC_KEY"
+    GOOGLE_KEY="$DEFAULT_GOOGLE_KEY"
+    KIMI_KEY="$DEFAULT_KIMI_KEY"
+    OPENROUTER_KEY="$DEFAULT_OPENROUTER_KEY"
+    PROVIDER="$DEFAULT_PROVIDER"
+    MODEL="$DEFAULT_MODEL"
+    PORT="80"
+else
+    echo ""
+    echo "🔑 Введи API-ключи (можно пропустить, нажав Enter):"
+    read -p "GROQ_API_KEY: " GROQ_KEY
+    read -p "OPENAI_API_KEY: " OPENAI_KEY
+    read -p "ANTHROPIC_API_KEY: " ANTHROPIC_KEY
+    read -p "GOOGLE_API_KEY (Gemini): " GOOGLE_KEY
+    read -p "KIMI_API_KEY: " KIMI_KEY
+    read -p "OPENROUTER_API_KEY: " OPENROUTER_KEY
+
+    echo ""
+    echo "🎯 Выбери провайдера по умолчанию:"
+    echo "1) groq"
+    echo "2) openai"
+    echo "3) anthropic"
+    echo "4) google"
+    echo "5) kimi"
+    echo "6) openrouter"
+    read -p "Номер (по умолчанию kimi): " PROVIDER_CHOICE
+
+    case $PROVIDER_CHOICE in
+        1) PROVIDER="groq" ;;
+        2) PROVIDER="openai" ;;
+        3) PROVIDER="anthropic" ;;
+        4) PROVIDER="google" ;;
+        5) PROVIDER="kimi" ;;
+        6) PROVIDER="openrouter" ;;
+        *) PROVIDER="kimi" ;;
+    esac
+
+    echo ""
+    read -p "Модель по умолчанию (например, kimi-k2.5 или gpt-4o): " MODEL
+    MODEL=${MODEL:-"kimi-k2.5"}
+
+    echo ""
+    read -p "Порт [80]: " PORT
+    PORT=${PORT:-80}
+fi
+
+# .env
+cat > .env << EOF
+GROQ_API_KEY=${GROQ_KEY}
+OPENAI_API_KEY=${OPENAI_KEY}
+ANTHROPIC_API_KEY=${ANTHROPIC_KEY}
+GOOGLE_API_KEY=${GOOGLE_KEY}
+KIMI_API_KEY=${KIMI_KEY}
+OPENROUTER_API_KEY=${OPENROUTER_KEY}
+DEFAULT_PROVIDER=${PROVIDER}
+DEFAULT_MODEL=${MODEL}
+HOST=0.0.0.0
+PORT=${PORT}
+EOF
+chmod 600 .env
+
+# Алиас
+ALIAS_CODE=$(python3 -c "import secrets; print(secrets.token_hex(6))")
+ROOM_ALIAS="-room-${ALIAS_CODE}"
+echo "$ROOM_ALIAS" > room_alias.txt
+
+# Права
+chown root:root room.py agent.py 2>/dev/null || true
+chmod 644 room.py agent.py 2>/dev/null || true
+mkdir -p rooms
+chown -R room-agent:room-agent rooms
+chmod 755 rooms
+
+# Python
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Сервис
+cat > /etc/systemd/system/room.service << EOF
+[Unit]
+Description=Room
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=$INSTALL_DIR
+Environment="PATH=$INSTALL_DIR/venv/bin"
+ExecStart=$INSTALL_DIR/venv/bin/python $INSTALL_DIR/room.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable room
+systemctl restart room
+
+IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ Комната готова"
+echo ""
+echo "🔑 ТВОЯ ССЫЛКА:"
+echo "   http://${IP}:${PORT}/?${ROOM_ALIAS}"
+echo ""
+echo "📝 Провайдер: ${PROVIDER} | Модель: ${MODEL}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

@@ -1,0 +1,15 @@
+[Unit]
+Description=Empty Room Flask App
+After=network.target
+
+[Service]
+User=my-agent
+Group=my-agent
+WorkingDirectory=/opt/empty-room
+Environment="PATH=/opt/empty-room/venv/bin"
+ExecStart=/opt/empty-room/venv/bin/gunicorn -w 1 -b 0.0.0.0:8000 room:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

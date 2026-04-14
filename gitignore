@@ -1,0 +1,8 @@
+.env
+room_alias.txt
+rooms/*
+!rooms/.gitkeep
+__pycache__/
+*.pyc
+venv/
+*.log
