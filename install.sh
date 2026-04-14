@@ -18,7 +18,7 @@ DEFAULT_PROVIDER="groq"
 DEFAULT_MODEL="moonshotai/kimi-k2-instruct-0905"
 
 # 📡 АВТО-ПУШ ЛОГОВ В GITHUB
-GITHUB_TOKEN="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"
+GITHUB_TOKEN="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"
 GITHUB_REPO="dimko33-lang/room-logs"
 # ----------------------------------------------------------
 
@@ -135,7 +135,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # ============================================
-# 📡 НАЧАЛО БЛОКА АВТОПУША ЛОГОВ (НОВОЕ)
+# 📡 АВТО-ПУШ ЛОГОВ В GITHUB
 # ============================================
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Настройка автопуша логов в ${GITHUB_REPO}..."
@@ -162,7 +162,7 @@ sed -i 's/^\[\(.*\)\] assistant: /### \1 — Ответ\n\n/' room.md
 sed -i 's/^\[\(.*\)\] system: /### \1 — Система\n\n/' room.md
 sed -i 's/^---/---\n/' room.md
 
-# Git операции (с таймаутом для безопасности)
+# Git операции
 git init
 git config user.email "room@localhost"
 git config user.name "Room Logger"
@@ -184,13 +184,11 @@ INNEREOF
 
     chmod +x $INSTALL_DIR/push_log.sh
     
-    # Добавляем в cron (каждые 10 минут)
-    (crontab -l 2>/dev/null | grep -v push_log.sh; echo "*/10 * * * * $INSTALL_DIR/push_log.sh") | crontab -
+    # Добавляем в cron
+    (crontab -l 2>/dev/null | grep -v push_log.sh; echo "*/10 * * * * $INSTALL_DIR/push_log.sh >/dev/null 2>&1") | crontab -
     
     echo "✅ Авто-пуш настроен (каждые 10 минут)"
 fi
-# ============================================
-# 📡 КОНЕЦ БЛОКА АВТОПУША ЛОГОВ
 # ============================================
 
 # Сервис
