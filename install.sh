@@ -139,7 +139,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # ============================================
-# 📡 АВТО-ПУШ ЛОГОВ (ДОПИСЫВАНИЕ, НЕ ПЕРЕЗАПИСЬ)
+# 📡 АВТО-ПУШ ЛОГОВ (ДОПИСЫВАНИЕ В MAIN)
 # ============================================
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Настройка автопуша логов в ${GITHUB_REPO}..."
@@ -160,20 +160,21 @@ git config user.email "room@localhost"
 git config user.name "Room Logger"
 git remote add origin "https://dimko33-lang:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
 
-# Скачиваем существующий лог из репозитория
+# Скачиваем существующий лог из main
 git fetch origin main 2>/dev/null && git checkout origin/main -- room.log 2>/dev/null || touch room.log
-git fetch origin master 2>/dev/null && git checkout origin/master -- room.log 2>/dev/null || true
 
-# Добавляем новые строки (все, кроме первой строки с путём)
-tail -n +2 /opt/room/room.log >> room.log 2>/dev/null || cat /opt/room/room.log >> room.log
+# Находим только новые строки
+comm -13 <(sort room.log 2>/dev/null) <(sort /opt/room/room.log 2>/dev/null) >> room.log.new
 
-# Убираем дубликаты
-sort -u room.log -o room.log
-
-git add room.log
-if ! git diff --cached --quiet 2>/dev/null; then
+if [ -s room.log.new ]; then
+    cat room.log.new >> room.log
+    sort -u room.log -o room.log
+    rm room.log.new
+    
+    git add room.log
     git commit -m "📝 $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null
-    timeout 10 git push -u origin HEAD:main 2>/dev/null || timeout 10 git push -u origin HEAD:master 2>/dev/null
+    git branch -M main
+    timeout 10 git push -u origin main --force 2>/dev/null
 fi
 
 rm -rf "$WORK_DIR"
@@ -184,7 +185,7 @@ INNEREOF
     # Добавляем в cron каждую минуту
     (crontab -l 2>/dev/null | grep -v push_log.sh; echo "* * * * * $INSTALL_DIR/push_log.sh >/dev/null 2>&1") | crontab -
     
-    echo "✅ Авто-пуш настроен (каждую минуту, история сохраняется)"
+    echo "✅ Авто-пуш настроен (каждую минуту, ветка main, история сохраняется)"
 else
     echo "ℹ️ Автопуш логов отключен"
     echo "#!/bin/bash" > $INSTALL_DIR/push_log.sh
@@ -228,6 +229,6 @@ echo ""
 echo "📝 Провайдер: ${PROVIDER} | Модель: ${MODEL}"
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Логи пушатся в: https://github.com/${GITHUB_REPO}"
-    echo "📋 История сохраняется, cron каждую минуту"
+    echo "📋 Ветка: main | Cron: каждую минуту | История: сохраняется"
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
