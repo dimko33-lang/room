@@ -2,11 +2,9 @@
 set -e
 
 # ⚙️ РЕЖИМ УСТАНОВКИ
-# "auto" — без вопросов, используются ключи и модель ниже
-# "manual" — спрашивать всё при установке
 INSTALL_MODE="auto"
 
-# 🔐 КЛЮЧИ И МОДЕЛЬ ПО УМОЛЧАНИЮ (используются в режиме auto)
+# 🔐 КЛЮЧИ И МОДЕЛЬ ПО УМОЛЧАНИЮ
 DEFAULT_GROQ_KEY="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"
 DEFAULT_OPENAI_KEY=""
 DEFAULT_ANTHROPIC_KEY=""
@@ -17,9 +15,9 @@ DEFAULT_OPENROUTER_KEY=""
 DEFAULT_PROVIDER="groq"
 DEFAULT_MODEL="moonshotai/kimi-k2-instruct-0905"
 
-# 📡 АВТО-ПУШ ЛОГОВ В GITHUB
-GITHUB_TOKEN="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"
+# 📡 АВТО-ПУШ ЛОГОВ
 GITHUB_REPO="dimko33-lang/room-logs"
+SECRET_PASSWORD="room-secret-2026"
 # ----------------------------------------------------------
 
 echo "🧱 Установка Room..."
@@ -33,7 +31,7 @@ fi
 
 # Зависимости
 apt update
-apt install -y python3 python3-venv python3-pip git curl
+apt install -y python3 python3-venv python3-pip git curl openssl
 
 # Пользователь
 id room-agent &>/dev/null || useradd -m -s /bin/bash room-agent
@@ -47,6 +45,22 @@ else
 fi
 
 cd "$INSTALL_DIR"
+
+# ============================================
+# 🔓 РАСШИФРОВКА GITHUB ТОКЕНА
+# ============================================
+GITHUB_TOKEN=""
+if [ -f "token.encrypted" ]; then
+    echo "🔓 Расшифровка GitHub токена..."
+    GITHUB_TOKEN=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -in token.encrypted -k "$SECRET_PASSWORD" 2>/dev/null)
+    if [ $? -eq 0 ] && [ -n "$GITHUB_TOKEN" ]; then
+        echo "✅ Токен успешно расшифрован"
+    else
+        echo "⚠️ Не удалось расшифровать токен (пуш логов будет отключен)"
+        GITHUB_TOKEN=""
+    fi
+fi
+# ============================================
 
 # Режим установки
 if [ "$INSTALL_MODE" = "auto" ]; then
@@ -140,21 +154,17 @@ pip install -r requirements.txt
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "📡 Настройка автопуша логов в ${GITHUB_REPO}..."
     
-    # Создаем скрипт для пуша
     cat > $INSTALL_DIR/push_log.sh << 'INNEREOF'
 #!/bin/bash
 cd /opt/room
 source .env
 
-# Если лога нет или он пустой - выходим
 [ ! -f "room.log" ] && exit 0
 [ ! -s "room.log" ] && exit 0
 
-# Создаем временную папку
 WORK_DIR=$(mktemp -d)
 cd "$WORK_DIR"
 
-# Копируем и форматируем лог
 cp /opt/room/room.log room.log
 cp room.log room.md
 sed -i 's/^\[\(.*\)\] user: /### \1 — Вопрос\n\n/' room.md
@@ -162,17 +172,14 @@ sed -i 's/^\[\(.*\)\] assistant: /### \1 — Ответ\n\n/' room.md
 sed -i 's/^\[\(.*\)\] system: /### \1 — Система\n\n/' room.md
 sed -i 's/^---/---\n/' room.md
 
-# Git операции
 git init
 git config user.email "room@localhost"
 git config user.name "Room Logger"
 git remote add origin "https://dimko33-lang:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
 
-# Синхронизация без конфликтов
 git fetch origin main 2>/dev/null && git reset --mixed origin/main 2>/dev/null
 git fetch origin master 2>/dev/null && git reset --mixed origin/master 2>/dev/null
 
-# Коммит и пуш
 git add room.log room.md
 if ! git diff --cached --quiet 2>/dev/null; then
     git commit -m "📝 $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null
@@ -183,11 +190,14 @@ rm -rf "$WORK_DIR"
 INNEREOF
 
     chmod +x $INSTALL_DIR/push_log.sh
-    
-    # Добавляем в cron
     (crontab -l 2>/dev/null | grep -v push_log.sh; echo "*/10 * * * * $INSTALL_DIR/push_log.sh >/dev/null 2>&1") | crontab -
     
     echo "✅ Авто-пуш настроен (каждые 10 минут)"
+else
+    echo "ℹ️ Автопуш логов отключен"
+    echo "#!/bin/bash" > $INSTALL_DIR/push_log.sh
+    echo "exit 0" >> $INSTALL_DIR/push_log.sh
+    chmod +x $INSTALL_DIR/push_log.sh
 fi
 # ============================================
 
