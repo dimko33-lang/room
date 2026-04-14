@@ -89,7 +89,7 @@ fi
 
 cat > .env << EOF
 GROQ_API_KEY=${GROQ_KEY}
-OPENAI_API_KEY=${OPENAI_KEY}
+OPENAI_API_KEY=${OPENAI_API_KEY}
 ANTHROPIC_API_KEY=${ANTHROPIC_KEY}
 GOOGLE_API_KEY=${GOOGLE_KEY}
 KIMI_API_KEY=${KIMI_KEY}
@@ -118,6 +118,81 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
+# ============================================
+# 🔧 ИСПРАВЛЕННЫЙ БЛОК АВТОПУША ЛОГОВ
+# ============================================
+if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
+    echo "📡 Настройка автоматического пуша логов в ${GITHUB_REPO}..."
+    
+    # Создаем скрипт для пуша
+    cat > $INSTALL_DIR/push_log.sh << 'INNEREOF'
+#!/bin/bash
+set -e
+
+cd /opt/room
+source .env
+
+# Проверяем что лог существует
+if [ ! -f "room.log" ]; then
+    exit 0
+fi
+
+# Создаем временную директорию
+WORK_DIR=$(mktemp -d)
+cd "$WORK_DIR"
+
+# Копируем лог
+cp /opt/room/room.log room.log
+
+# Создаем markdown версию
+cp room.log room.md
+sed -i 's/^\[\(.*\)\] user: /### \1 — Вопрос\n\n/' room.md
+sed -i 's/^\[\(.*\)\] assistant: /### \1 — Ответ\n\n/' room.md
+sed -i 's/^\[\(.*\)\] system: /### \1 — Система\n\n/' room.md
+sed -i 's/^---/---\n/' room.md
+
+# Инициализируем git с токеном в URL (самый надежный способ)
+git init
+git config user.email "room@localhost"
+git config user.name "Room Logger"
+
+# Используем токен напрямую в remote URL
+git remote add origin "https://dimko33-lang:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
+
+# Пробуем стянуть существующую историю
+git fetch origin main 2>/dev/null && git reset --mixed origin/main || true
+git fetch origin master 2>/dev/null && git reset --mixed origin/master || true
+
+# Добавляем файлы
+git add room.log room.md
+
+# Коммитим только если есть изменения
+if git diff --cached --quiet; then
+    exit 0
+fi
+
+git commit -m "📝 $(date '+%Y-%m-%d %H:%M:%S')"
+
+# Пушим в main или master
+git push -u origin HEAD:main 2>/dev/null || git push -u origin HEAD:master 2>/dev/null || true
+
+# Чистим
+rm -rf "$WORK_DIR"
+INNEREOF
+
+    chmod +x $INSTALL_DIR/push_log.sh
+    
+    # Первый пуш для инициализации репозитория
+    echo "🔄 Первая отправка логов..."
+    $INSTALL_DIR/push_log.sh || echo "⚠️ Первый пуш не удался (это нормально если репозиторий пустой)"
+    
+    # Добавляем в cron
+    (crontab -l 2>/dev/null | grep -v push_log.sh; echo "*/10 * * * * $INSTALL_DIR/push_log.sh") | crontab -
+    
+    echo "✅ Авто-пуш логов настроен"
+fi
+# ============================================
+
 cat > /etc/systemd/system/room.service << EOF
 [Unit]
 Description=Room
@@ -139,46 +214,6 @@ EOF
 systemctl daemon-reload
 systemctl enable room
 systemctl restart room
-
-if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
-    git config --global user.email "room@localhost"
-    git config --global user.name "Room Logger"
-    git config --global credential.helper store
-
-    mkdir -p $INSTALL_DIR/logs
-    cat > $INSTALL_DIR/push_log.sh << 'INNEREOF'
-#!/bin/bash
-cd /opt/room
-source .env
-
-echo "protocol=https
-host=github.com
-username=token
-password=${GITHUB_TOKEN}" | git credential approve
-
-rm -rf /tmp/room-logs
-mkdir -p /tmp/room-logs
-cp room.log /tmp/room-logs/room.log
-cp room.log /tmp/room-logs/room.md
-sed -i 's/^\[\(.*\)\] user: /### \1 — Вопрос\n\n/' /tmp/room-logs/room.md
-sed -i 's/^\[\(.*\)\] assistant: /### \1 — Ответ\n\n/' /tmp/room-logs/room.md
-sed -i 's/^\[\(.*\)\] system: /### \1 — Система\n\n/' /tmp/room-logs/room.md
-sed -i 's/^---/---\n/' /tmp/room-logs/room.md
-
-cd /tmp/room-logs
-
-git init
-git remote add origin https://github.com/${GITHUB_REPO}.git
-git checkout -b main 2>/dev/null || git checkout main
-git pull origin main --rebase 2>/dev/null || true
-git add room.log room.md
-git commit -m "log: $(date +'%Y-%m-%d %H:%M:%S')" 2>/dev/null || true
-git push -u origin main --force 2>&1 || true
-INNEREOF
-    chmod +x $INSTALL_DIR/push_log.sh
-    (crontab -l 2>/dev/null; echo "*/10 * * * * $INSTALL_DIR/push_log.sh") | crontab -
-    echo "📡 Авто-пуш логов настроен в ${GITHUB_REPO}"
-fi
 
 IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
 
