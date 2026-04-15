@@ -131,18 +131,17 @@ systemctl daemon-reload
 systemctl enable room
 systemctl restart room
 
+IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
+
 WIDTH=$(tput cols 2>/dev/null || echo 80)
 LINE=$(printf '━%.0s' $(seq 1 $WIDTH))
 
 echo ""
 echo "$LINE"
 echo ""
-
 echo "              http://${IP}:${PORT}/?${ROOM_ALIAS}"
 echo ""
-
 echo "$LINE"
 echo ""
-
 echo " ${PROVIDER} | ${MODEL}"
 echo ""
