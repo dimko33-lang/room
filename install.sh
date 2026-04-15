@@ -133,5 +133,10 @@ systemctl restart room
 
 IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
 
-echo "http://${IP}:${PORT}/?${ROOM_ALIAS}"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "              http://${IP}:${PORT}/?${ROOM_ALIAS}"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "${PROVIDER} | ${MODEL}"
