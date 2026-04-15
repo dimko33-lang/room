@@ -232,8 +232,15 @@ systemctl restart room
 IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
 
 echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "
 echo ""
-echo "     http://${IP}:${PORT}/?${ROOM_ALIAS}"
+echo "
+echo "   http://${IP}:${PORT}/?${ROOM_ALIAS}"
 echo ""
-echo "      ${PROVIDER} | ${MODEL}"
-echo ""
+echo " Провайдер: ${PROVIDER} | Модель: ${MODEL}"
+if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
+    echo " Логи пушатся в: https://github.com/${GITHUB_REPO}"
+    echo " Файл: $LOG_FILENAME"
+fi
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
