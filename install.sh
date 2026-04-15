@@ -6,7 +6,7 @@ INSTALL_MODE="auto"
 
 # 🎯 ПРОВАЙДЕР И МОДЕЛЬ ПО УМОЛЧАНИЮ
 DEFAULT_PROVIDER="groq"
-DEFAULT_MODEL="moonshotai/kimi-k2-instruct-0905"
+DEFAULT_MODEL="llama-3.3-70b-versatile"
 
 # 📡 АВТО-ПУШ ЛОГОВ (GITHUB API С ДАТОЙ В ИМЕНИ ФАЙЛА)
 GITHUB_REPO="dimko33-lang/room-logs"
@@ -232,15 +232,14 @@ systemctl restart room
 IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
 
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "
 echo "   http://${IP}:${PORT}/?${ROOM_ALIAS}"
 echo ""
-echo " Провайдер: ${PROVIDER} | Модель: ${MODEL}"
+echo "   Провайдер: ${PROVIDER} | Модель: ${MODEL}"
 if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
-    echo " Логи пушатся в: https://github.com/${GITHUB_REPO}"
-    echo " Файл: $LOG_FILENAME"
+    echo "   Логи: https://github.com/${GITHUB_REPO}"
+    echo "   Файл: $LOG_FILENAME"
 fi
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
