@@ -231,8 +231,14 @@ systemctl restart room
 
 IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
 
+# Получаем ширину терминала (если не определена — ставим 80)
+WIDTH=$(tput cols 2>/dev/null || echo 80)
+
+# Генерируем полосу нужной длины
+LINE=$(printf '%*s' "$WIDTH" '' | tr ' ' '━')
+
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "$LINE"
 echo ""
 echo ""
 echo "   http://${IP}:${PORT}/?${ROOM_ALIAS}"
@@ -243,5 +249,5 @@ if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO" ]; then
     echo "   Файл: $LOG_FILENAME"
 fi
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "$LINE"
 echo ""
