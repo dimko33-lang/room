@@ -25,7 +25,7 @@
 
 ## Живые демо-комнаты
 
-- http://89.125.84.111/?-void-cb77620d7fba (gpt-oss-120b GROQ)
+- http://89.125.84.111/?-void-33ddd7966af1 (llama-3.3-70b GROQ)
 - http://78.17.36.139/?-empty-web-4fdda84a92e3 (kimi k2.5)
 - http://89.125.62.58/?-void-47817ac1ffc3 (kimi k2.5)
 
